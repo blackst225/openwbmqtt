@@ -11,6 +11,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import slugify
+from homeassistant.components.mqtt import publish
 
 from .common import OpenWBBaseEntity
 
@@ -150,7 +151,7 @@ class openWBNumber(OpenWBBaseEntity, NumberEntity):
             1,
         )
 
-    async def async_set_native_value(self, value):
+    async def async_set_native_value(self, value: float) -> None:
         """Update the current value.
 
         After set_value --> the result is published to MQTT.
@@ -158,13 +159,26 @@ class openWBNumber(OpenWBBaseEntity, NumberEntity):
         Only then, openWB has changed the setting as well.
         """
         self._attr_native_value = value
-        self.publishToMQTT()
-        # self.async_write_ha_state()
+        # Wir rufen die neue async Methode auf
+        await self.async_publish_to_mqtt()
 
-    def publishToMQTT(self):
-        """Publish data to MQTT."""
+    async def async_publish_to_mqtt(self):
+        """Publish data to MQTT using the service call."""
         topic = f"{self.entity_description.mqttTopicCommand}"
-        _LOGGER.debug("MQTT topic: %s", topic)
         payload = str(int(self._attr_native_value))
+        
+        _LOGGER.debug("MQTT topic: %s", topic)
         _LOGGER.debug("MQTT payload: %s", payload)
-        self.hass.components.mqtt.publish(self.hass, topic, payload)
+
+        # Umstellung auf den offiziellen Service Call
+        await self.hass.services.async_call(
+            "mqtt",
+            "publish",
+            {
+                "topic": topic,
+                "payload": payload,
+                "retain": False
+            },
+        )
+
+ 
